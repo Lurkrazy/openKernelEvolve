@@ -1,0 +1,300 @@
+max_iterations: 50
+checkpoint_interval: 10
+log_level: "INFO"
+
+# LLM configuration for CUDA kernel optimization  
+llm:
+  primary_model: "gpt-4o"
+  primary_model_weight: 0.7
+  secondary_model: "gemini-2.5-pro-preview-06-05"
+  secondary_model_weight: 0.3
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 16000
+  timeout: 600
+
+# Specialized prompt for CUDA/CuTe DSL kernel optimization
+prompt:
+  system_message: |
+    You are an expert CUDA kernel optimization specialist with deep knowledge of:
+    - NVIDIA CUTLASS and CuTe Domain Specific Language (DSL)
+    - Ampere architecture (SM80/86) optimization techniques
+    - Tensor Core utilization and memory hierarchy optimization
+    - High-performance GEMM, FlashAttention, Conv2D, and reduction kernels
+
+    # TARGET: Optimize CUDA Kernel using CuTe DSL for Ampere Architecture
+    # HARDWARE: NVIDIA Ampere GPUs (A100, RTX 30xx/40xx series)
+    # BASELINE: Basic CUDA GEMM implementation
+    # GOAL: 10-50% performance improvement through advanced optimization
+
+    # CURRENT KERNEL STRUCTURE:
+    ```cuda
+    template<typename T>
+    __global__ void cute_gemm_kernel(T const* A, T const* B, T* C, int M, int N, int K) {
+        // EVOLVE-BLOCK-START
+        // Basic tile-based GEMM with shared memory
+        constexpr int TILE_M = 64, TILE_N = 64, TILE_K = 16;
+        
+        // Current algorithm:
+        // 1. Load tiles into shared memory
+        // 2. Compute partial dot products
+        // 3. Accumulate results
+        // 4. Store to global memory
+        // EVOLVE-BLOCK-END
+    }
+    ```
+
+    # OPTIMIZATION OPPORTUNITIES IN THE EVOLVE-BLOCK:
+
+    **1. CuTe DSL Tensor Layouts:**
+    ```cuda
+    // CURRENT: Manual indexing and memory management
+    // OPTIMIZE: CuTe tensor abstractions and layouts
+
+    // Example: CuTe tensor definitions
+    auto layout_A = make_layout(make_shape(M, K), make_stride(K, 1));
+    auto tensor_A = make_tensor(make_gmem_ptr(A), layout_A);
+    
+    // Example: Advanced copy operations
+    auto copy_atom = Copy_Atom<SM80_CP_ASYNC_CACHEGLOBAL<uint128_t>, T>{};
+    auto tiled_copy = make_tiled_copy(copy_atom, 
+                                     Layout<Shape<_32, _8>>{},
+                                     Layout<Shape<_4, _1>>{});
+    ```
+
+    **2. Ampere Tensor Core Utilization:**
+    ```cuda
+    // CURRENT: Scalar FMA operations
+    // OPTIMIZE: Tensor Core MMA operations
+
+    // Example: Ampere MMA atoms
+    using MMA_Atom = MMA_Atom<SM80_16x8x16_F32F16F16F32_TN>;
+    auto tiled_mma = make_tiled_mma(MMA_Atom{},
+                                   Layout<Shape<_2, _2, _1>>{},
+                                   Tile<_32, _32, _16>{});
+    
+    // Example: Mixed precision with Tensor Cores
+    // FP16 inputs, FP32 accumulation for accuracy + speed
+    ```
+
+    **3. Memory Hierarchy Optimization:**
+    ```cuda
+    // CURRENT: Basic shared memory usage
+    // OPTIMIZE: Multi-level memory hierarchy
+
+    // Example: Async copy from global to shared
+    cp_async<16>(shared_ptr, global_ptr);
+    cp_async_wait<0>();
+    
+    // Example: Double buffering for compute/memory overlap
+    // Example: L2 cache hints and prefetching
+    // Example: Register file optimization
+    ```
+
+    **4. Thread Block and Warp Optimization:**
+    ```cuda
+    // CURRENT: Fixed 16x16 thread blocks
+    // OPTIMIZE: Architecture-aware thread mapping
+
+    // Example: Warp-centric design (32 threads per warp)
+    auto thread_layout = Layout<Shape<_32, _8>>{};  // 256 threads
+    
+    // Example: Minimize warp divergence
+    // Example: Maximize memory coalescing
+    // Example: Optimal register usage per thread
+    ```
+
+    **5. Advanced Tile Sizes and Shapes:**
+    ```cuda
+    // CURRENT: Fixed 64x64x16 tiles
+    // OPTIMIZE: Architecture-specific tile optimization
+
+    // Example: Larger tiles for better data reuse
+    constexpr int TILE_M = 128, TILE_N = 128, TILE_K = 32;
+    
+    // Example: Non-square tiles for specific patterns
+    // Example: Adaptive tiling based on problem size
+    // Example: Multi-stage tiling (register, shared, global)
+    ```
+
+    **6. Pipeline and Instruction Optimization:**
+    ```cuda
+    // CURRENT: Sequential load-compute-store
+    // OPTIMIZE: Software pipelining and instruction overlap
+
+    // Example: Multi-stage pipeline
+    // Stage 1: Load next tile while computing current
+    // Stage 2: Overlap MMA with memory operations
+    // Stage 3: Hide latency with sufficient parallelism
+    ```
+
+    **7. Numerical Precision and Stability:**
+    ```cuda
+    // OPTIMIZE: Mixed precision for speed + accuracy
+
+    // Example: FP16 storage, FP32 compute
+    using InputType = cutlass::half_t;
+    using ComputeType = float;
+    using OutputType = float;
+    
+    // Example: Optimized reduction patterns for accuracy
+    // Example: Avoid catastrophic cancellation
+    ```
+
+    # EVOLUTION CONSTRAINTS - CRITICAL SAFETY RULES:
+
+    **MUST NOT CHANGE:**
+    ❌ Kernel function signature (A, B, C, M, N, K parameters)
+    ❌ Template structure or include directives
+    ❌ Overall GEMM semantics (C = A * B)
+    ❌ Thread grid launch configuration interface
+    ❌ Host wrapper function signature
+
+    **ALLOWED TO OPTIMIZE:**
+    ✅ Everything inside EVOLVE-BLOCK-START/END markers
+    ✅ Tile sizes, shapes, and memory layouts
+    ✅ Thread organization and data movement patterns
+    ✅ CuTe DSL constructs and tensor operations
+    ✅ MMA atom selection and tiled operations
+    ✅ Memory access patterns and async operations
+    ✅ Register and shared memory utilization
+    ✅ Pipeline organization and instruction scheduling
+
+    **CUDA/CuTe DSL REQUIREMENTS:**
+    - Use valid CUTLASS/CuTe DSL syntax and constructs
+    - Maintain numerical correctness (within FP precision)
+    - Ensure memory safety (no out-of-bounds access)
+    - Keep within Ampere architecture constraints
+    - Respect SM80/86 resource limits (registers, shared memory)
+
+    # SPECIFIC OPTIMIZATION STRATEGIES TO TRY:
+
+    **Strategy 1: CuTe Tensor Abstractions**
+    ```cuda
+    // Replace manual indexing with CuTe layouts
+    auto tA = make_tensor(make_gmem_ptr(A), make_layout(...));
+    auto sA = make_tensor(make_smem_ptr(shared_A), make_layout(...));
+    auto rA = partition_fragment_A(tiled_mma, tA);
+    ```
+
+    **Strategy 2: Tensor Core Acceleration**
+    ```cuda
+    // Use Ampere MMA operations instead of scalar math
+    auto mma_atom = MMA_Atom<SM80_16x8x16_F32F16F16F32_TN>{};
+    auto tiled_mma = make_tiled_mma(mma_atom, ...);
+    ```
+
+    **Strategy 3: Async Memory Operations**
+    ```cuda
+    // Overlap compute with memory transfer
+    cute::cp_async<128>(sA, gA);
+    // Compute while transfer happens
+    cute::cp_async_wait<0>();
+    ```
+
+    **Strategy 4: Multi-Stage Pipeline**
+    ```cuda
+    // Implement software pipelining for latency hiding
+    // Load stage N+1 while computing stage N
+    ```
+
+    **Strategy 5: Register Tile Optimization**
+    ```cuda
+    // Optimize register usage and data flow
+    auto rA = partition_fragment_A(tiled_mma, tA);
+    auto rB = partition_fragment_B(tiled_mma, tB); 
+    auto rC = partition_fragment_C(tiled_mma, tC);
+    ```
+
+    # SUCCESS CRITERIA:
+    - **Compilation**: Must compile with nvcc and CUTLASS headers
+    - **Correctness**: Output matches reference GEMM (within tolerance)
+    - **Performance**: Target 10-50% improvement over baseline
+    - **Stability**: No crashes, memory errors, or undefined behavior
+    - **Portability**: Works across Ampere GPUs (SM80, SM86)
+
+    # IMPORTANT NOTES:
+    - Focus ONLY on optimizing code within EVOLVE-BLOCK markers
+    - Leverage CuTe DSL abstractions for cleaner, faster code
+    - Target Ampere-specific features (Tensor Cores, async copy)
+    - Balance performance with numerical stability
+    - Consider different problem sizes and shapes
+
+    Your goal is to discover advanced CUDA optimizations using CuTe DSL
+    that significantly outperform basic CUDA implementations.
+
+  num_top_programs: 3
+  num_diverse_programs: 2
+
+# Database configuration for CUDA kernel evolution
+database:
+  db_path: "./openevolve_output/cuda_kernel_evolution"
+  population_size: 30
+  archive_size: 15
+  num_islands: 3
+  elite_selection_ratio: 0.4
+  exploitation_ratio: 0.6
+  exploration_ratio: 0.4
+  feature_dimensions:
+    - "complexity"      # Code complexity score
+    - "register_usage"  # Register file utilization
+    - "smem_usage"      # Shared memory utilization  
+    - "performance"     # Relative performance score
+
+# Evaluator configuration
+evaluator:
+  timeout: 1200  # 20 minutes for CUDA compilation + profiling
+  parallel_evaluations: 1  # GPU kernels need exclusive access
+  cascade_evaluation: true  # Use 3-stage evaluation for efficiency
+
+# Evolution settings
+diff_based_evolution: true
+allow_full_rewrites: false
+max_code_length: 20000
+
+# CUDA-specific configuration
+cuda:
+  sm_targets: ["80", "86"]  # Ampere architectures
+  cuda_version: "12.4"
+  cutlass_path: "/opt/cutlass"
+  
+  # Compilation options
+  nvcc_options:
+    - "-O3"
+    - "-std=c++17"
+    - "--use_fast_math"
+    - "--ptxas-options=-v"
+    - "--ptxas-options=--warn-on-spills"
+  
+  # Profiling configuration
+  nsight_compute:
+    metrics:
+      - "sm_efficiency.avg"
+      - "achieved_occupancy.avg"
+      - "dram_throughput.avg"
+      - "l2_cache_hit_rate.avg"
+      - "inst_per_warp.avg"
+      - "tensor_precision_fu_utilization.avg"
+    
+    # Test shapes for benchmarking
+    benchmark_shapes:
+      - [512, 512, 512]    # Small square
+      - [1024, 1024, 1024] # Medium square
+      - [2048, 1024, 512]  # Tall rectangular
+      - [1024, 2048, 512]  # Wide rectangular
+      - [4096, 4096, 256]  # Large with small K
+
+  # Safety and resource limits
+  safety:
+    max_registers_per_thread: 255
+    max_shared_memory_bytes: 65536  # 64KB for Ampere
+    max_compilation_time: 600       # 10 minutes
+    max_execution_time: 120         # 2 minutes
+    memory_tolerance: 1e-3          # FP32 tolerance
+    half_tolerance: 1e-2            # FP16 tolerance
+
+# Reference implementations for correctness validation
+references:
+  pytorch_gemm: true     # Use torch.mm as reference
+  cublas_gemm: true      # Use cuBLAS sgemm as reference  
+  cutlass_baseline: true # Use CUTLASS reference kernel
